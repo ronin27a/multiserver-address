@@ -495,3 +495,53 @@ svg.railroad-diagram rect {
 </div>
 </body>
 </html>
+var MultiServer = require('multiserver')
+var chloride = require('chloride')
+var keys = chloride.crypto_sign_keypair()
+var appKey = "dTuPysQsRoyWzmsK6iegSV4U3Qu912vPpkOyx6bPuEk="
+
+function accept_all (id, cb) {
+  cb(null, true)
+}
+var ms = MultiServer([
+  [ //net + secret-handshake
+    require('multiserver/plugins/net')({port: 3333}),
+    require('multiserver/plugins/shs')({
+      keys: keys,
+      appKey: appKey, //application key
+      auth: accept_all
+    }),
+  ],
+  [ //net + secret-handshake2
+    //(not implemented yet, but incompatible with shs)
+    require('multiserver/plugins/net')({port: 4444}),
+    //this protocol doesn't exist yet, but it could.
+    require('secret-handshake2')({
+      keys: keys,
+      appKey: appKey, //application key
+      auth: accept_all
+    }),
+  ]
+])
+
+console.log(ms.stringify())
+
+//=> net:<host>:3333~shs:<key>;net:<host>:4444~shs2:<key>
+
+//run two servers on two ports.
+//newer peers can connect directly to 4444 and use shs2.
+//this means the protocol can be _completely_ upgraded.
+ms.server(function (stream) {
+  console.log('connection from', stream.address)
+})
+
+//connect to legacy protocol
+ms.client('net:<host>:3333~shs:<key>', function (err, stream) {
+  //...
+})
+
+//connect to modern protocol
+ms.client('net:<host>:4444~shs2:<key>', function (err, stream) {
+  //...
+})
+    
